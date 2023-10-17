@@ -63,10 +63,6 @@ mult_comb <- IntegrateData(anchorset = anchors, normalization.method = "SCT",
 mult_comb <- RunPCA(mult_comb, npcs = 30, verbose = FALSE)
 mult_comb <- RunUMAP(mult_comb, reduction = "pca", dims = 1:30)
 
-# Clustering
-mult_comb <- FindNeighbors(mult_comb, reduction = "pca", dims = 1:30)
-mult_comb <- FindClusters(mult_comb, resolution = 0.8)
-
 ## ATAC integration ####
 # run LSI on new seurat object with integrated RNA assay
 DefaultAssay(mult_comb) <- "ATAC"
