@@ -5,7 +5,7 @@ Multiome data (RNA-seq + ATAC-seq) is composed of two cachectic replicates and t
 - clustering and cell-type annotation (3_multiome_celltype_annotation.R);
 - differential expression analysis and differential abundance (4_multiome_DEA_DA.R);
 
-RNA data is composed of one cachectic and sham replicate. For each replicate, we create a Seurat object.
+GEX data is composed of one cachectic and sham replicate. For each replicate, we create a Seurat object.
 - Quality control (5_rna_quality_control.R );
 - RNA integration (6_rna_integration.R);
 - clustering and cell-type annotation (7_rna_celltype_annotation.R);
