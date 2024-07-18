@@ -22,9 +22,14 @@ DefaultAssay(sgl_mult) <- "RNA"
 # From Seurat to SingleCellExperiment object
 sce_mult <- as.SingleCellExperiment(sgl_mult)
 
+# genes filtering: 5% for each replicate
+keep <- apply(counts, 1, function(y) all(tapply(y, sce_mult$dataset, function(x) mean(x>0))>=0.1))
+
+filtered_sce <- sce_mult[keep, ]                                                
+
 # Create pseudo-bulk 
-pb_mult <- aggregateAcrossCells(sce_mult, use.assay.type = "counts", 
-                                id=DataFrame(label=sce_mult$subclusters, sample=sce_mult$dataset))
+pb_mult <- aggregateAcrossCells(filtered_sce, use.assay.type = "counts", 
+                                id=DataFrame(label=filtered_sce$subclusters, sample=filtered_sce$dataset))
 pb_mult <- logNormCounts(pb_mult)
 
 colnames(pb_mult) <- paste(pb_mult$subclusters, pb_mult$dataset, sep="_")
@@ -38,29 +43,29 @@ for (i in seq_along(unique(pb_mult$subclusters))) {
   ct_pb <- pb_mult[, pb_mult$subclusters == unique(pb_mult$subclusters)[i]]
   
   y <- DGEList(counts(ct_pb), samples = colData(ct_pb))
-  keep <- filterByExpr(y, group = ct_pb$condition)
-  y <- y[keep, ]
+  # keep <- filterByExpr(y, group = ct_pb$condition)
+  # y <- y[keep, ]
   y <- calcNormFactors(y, method = "upperquartile")
   
   design <- model.matrix(~0 + y$samples$condition, y$samples)
-  colnames(design) <- c("CAC", "SHAM")
+  colnames(design) <- c("C26", "CTRL")
   
-  contrast <- makeContrasts(CAC - SHAM,levels = design)
+  contrast <- makeContrasts(C26 - CTRL,levels = design)
   
   y <- estimateDisp(y, design)
   
+  # fit <- glmQLFit(y, design)
   fit <- glmFit(y, design)
   
   res_mult[[i]] <- glmLRT(fit, contrast = contrast)
   
-  df_mult[[i]] <- as.data.frame(res_mult[[i]]$table)
+  # df_mult[[i]] <- as.data.frame(res_mult[[i]]$table)
   
-  df_mult[[i]] <- as.data.frame(df_mult[[i]])[order(as.data.frame(df_mult[[i]])$PValue), ]
+  # df_mult[[i]] <- as.data.frame(df_mult[[i]])[order(as.data.frame(df_mult[[i]])$PValue), ]
   
-  FDR <- as.data.frame(topTags(res_mult[[i]], n = length(rownames(pb_mult)))[, 5])
-  
-  df_mult[[i]] <- cbind(df_mult[[i]], FDR)
-  df_mult[[i]] <- df_mult[[i]][order(df_mult[[i]]$FDR), ]
+  df_mult[[i]] <- as.data.frame(topTags(res_mult[[i]], n = length(rownames(pb_mult))))
+
+  df_mult[[i]] <- df_mult[[i]][order(df_mult[[i]]$logFC, decreasing = TRUE), ]
 }
 names(df_mult) <- unique(pb_mult$subclusters)
 
@@ -95,7 +100,7 @@ df_save <- lapply(df_save, function(x) cbind(x[,6], x[,1:5]))
 df_save <- lapply(df_save, function(x) {
   colnames(x) <- c("Gene_Name_ID", "logFC","logCPM","LR", "PValue", "FDR");x
 })
-writexl::write_xlsx(df_save, "multiome_DEList.xlsx")
+writexl::write_xlsx(df_save, "multiome_DEGlist_after_filtering.xlsx")
 
 df_save <- lapply(df_up_degs, function(x){
   x$Gene_Name_ID <- rownames(x); x
