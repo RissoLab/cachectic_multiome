@@ -23,7 +23,7 @@ DefaultAssay(sgl_mult) <- "RNA"
 sce_mult <- as.SingleCellExperiment(sgl_mult)
 
 # genes filtering: 10% for each replicate
-keep <- apply(counts, 1, function(y) all(tapply(y, sce_mult$dataset, function(x) mean(x>0))>=0.1))
+keep <- apply(counts(sce_mult), 1, function(y) all(tapply(y, sce_mult$dataset, function(x) mean(x>0))>=0.1))
 
 filtered_sce <- sce_mult[keep, ]                                                
 
