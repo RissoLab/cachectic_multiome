@@ -122,6 +122,37 @@ df_save <- lapply(df_save, function(x) {
 })
 writexl::write_xlsx(df_save, "multiome_Down_DEList.xlsx")
 
+# Myonuclei overall ###
+myo <- filtered_sce[, filtered_sce$clusters=="Myonuclei"]
+
+pb_myo <- aggregateAcrossCells(myo, use.assay.type = "counts", 
+                                id=DataFrame(label=myo$clusters, sample=myo$dataset))
+pb_myo <- logNormCounts(pb_myo)
+
+  y <- DGEList(counts(pb_myo), samples = colData(pb_myo))
+  # keep <- filterByExpr(y, group = ct_pb$condition)
+  # y <- y[keep, ]
+  y <- calcNormFactors(y, method = "upperquartile")
+  
+  design <- model.matrix(~0 + y$samples$condition, y$samples)
+  colnames(design) <- c("C26", "CTRL")
+  
+  contrast <- makeContrasts(C26 - CTRL,levels = design)
+  
+  y <- estimateDisp(y, design)
+  
+  # fit <- glmQLFit(y, design)
+  fit <- glmFit(y, design)
+  
+  res_myo <- glmLRT(fit, contrast = contrast)
+  
+
+  df_myo <- as.data.frame(topTags(res_myo, n = length(rownames(pb_myo))))
+  
+  df_myo <- df_myo[order(df_myo$logFC, decreasing = TRUE), ]
+
+  saveRDS(df_myo, file = "multiome_myo_overall_UQ_DFResults.rds")
+  
 ## Scatter plot####
 tab <- as.data.frame(tab)
 tab$Label <- factor(rownames(tab))
