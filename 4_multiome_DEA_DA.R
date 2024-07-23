@@ -294,7 +294,7 @@ y_ab2 <- estimateDisp(y_ab2, design, trend="none")
 fit_ab2 <- glmQLFit(y_ab2, design, robust=TRUE, abundance.trend=FALSE)
 res2_contr <- glmQLFTest(fit_ab2, contrast=contrast)
 summary(decideTests(res2_contr))
-topTags(res2_contr)
+topTags(res2_contr, n = 15)
 
 # Gene Set Enrichmente analysis####
 background <- lapply(df_mult, function(x) rownames(x))
