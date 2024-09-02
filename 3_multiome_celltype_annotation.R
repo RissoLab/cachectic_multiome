@@ -200,3 +200,10 @@ for (i in seq_along(ll)) {
     ggtitle(names(ll)[i]) + NoLegend() + scale_color_manual(values=palette_color)
   ggsave(p, file=paste("multiome_UMAP_subclusters_",names(ll)[i],".jpg", sep = ""), width = 20, height = 20, units = "cm")
 }
+
+# UMAP colored by condition ####
+sgl_mult$condition[sgl_mult$condition == "SHAM"] <- "CTRL"
+sgl_mult$condition[sgl_mult$condition == "CAC"] <- "C26"
+p <- DimPlot(sgl_mult, reduction = "UMAP.wnn", group.by = "condition") +
+  NoLegend()+ labs(x = "WNN_UMAP1", y = "WNN_UMAP2") + ggtitle("") + scale_color_manual(values = c("CTRL" = "blue", "C26" = "red"))
+ggsave(p, file=paste("multiome_umap_wnn_condition.pdf",sep = ""), width = 20, height = 20, units = "cm")
