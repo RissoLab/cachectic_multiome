@@ -1,5 +1,3 @@
-.libPaths(new = "/mnt/ganimede/zuin/R/x86_64-pc-linux-gnu-library/4.3")
-
 library(Seurat)
 library(Signac)
 library(dplyr)
@@ -92,7 +90,7 @@ mult_comb <- RunUMAP(mult_comb, nn.name = "weighted.nn", reduction.name = "UMAP.
 DefaultAssay(mult_comb) <- "RNA"
 
 # Create a list object
-ll <- lapply(unique(mult_comb$dataset), function(x) mult_comb[, mult_comb$dataset==x])
+ll <- lapply(unique(mult_comb$dataset), function(x) mult_comb[, mult_comb$dataset == x])
 names(ll) <- unique(mult_comb$dataset)
 
 ll <- lapply(ll, function(x){DefaultAssay(x) <- "RNA"; x})
@@ -100,28 +98,28 @@ ll <- lapply(ll, function(x){DefaultAssay(x) <- "RNA"; x})
 scelist <- lapply(ll, function(x) as.SingleCellExperiment(x))
 
 # HVGs were calculated for each sample
-topgs <- lapply(scelist, function(x) getTopHVGs(x, prop=0.1))
+topgs <- lapply(scelist, function(x) getTopHVGs(x, prop = 0.1))
 
-scores <- mapply(function(x,y) computeDoubletDensity(x, subset.row=y) , scelist, topgs)
-dbl_calls <- lapply(scores, function(x) doubletThresholding(data.frame(score=x), 
-                                                            method="griffiths", returnType="call")) 
+scores <- mapply(function(x,y) computeDoubletDensity(x, subset.row = y) , scelist, topgs)
+dbl_calls <- lapply(scores, function(x) doubletThresholding(data.frame(score = x), 
+                                                            method = "griffiths", returnType = "call")) 
 
 save(scores, dbl_calls, file = "Multiome_Doublets.RData")
 
 mult_comb$gex_scores <- mult_comb$dataset
 mult_comb$gex_dbl_calls <- mult_comb$dataset
 for (i in seq_along(unique(mult_comb$dataset))) {
-  mult_comb$gex_scores[mult_comb$gex_scores==unique(mult_comb$dataset)[i]] <- scores[[i]]
-  mult_comb$gex_dbl_calls[mult_comb$gex_dbl_calls==unique(mult_comb$dataset)[i]] <- dbl_calls[[i]]
+  mult_comb$gex_scores[mult_comb$gex_scores == unique(mult_comb$dataset)[i]] <- scores[[i]]
+  mult_comb$gex_dbl_calls[mult_comb$gex_dbl_calls == unique(mult_comb$dataset)[i]] <- dbl_calls[[i]]
 }
-mult_comb$gex_dbl_calls[mult_comb$gex_dbl_calls=="1"] <- "singlet"
-mult_comb$gex_dbl_calls[mult_comb$gex_dbl_calls=="2"] <- "doublet"
+mult_comb$gex_dbl_calls[mult_comb$gex_dbl_calls == "1"] <- "singlet"
+mult_comb$gex_dbl_calls[mult_comb$gex_dbl_calls == "2"] <- "doublet"
 
 color <- c("grey","red")
 names(color) <- c("singlet","doublet")
 
 p <- DimPlot(mult_comb, reduction = "umap", group.by = "gex_dbl_calls") + 
-  NoLegend() + scale_color_manual(values=color) +ggtitle("Doublets")
+  NoLegend() + scale_color_manual(values = color) + ggtitle("Doublets")
 ggsave(p, file=paste("multiome_UMAP_doublets.jpg",sep = ""), width = 20, height = 20, units = "cm")
 
 saveRDS(mult_comb, file = "multiome_comb_dblcalls.rds")

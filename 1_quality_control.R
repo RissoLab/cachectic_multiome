@@ -1,5 +1,3 @@
-.libPaths(new = "/mnt/ganimede/zuin/R/x86_64-pc-linux-gnu-library/4.3")
-
 library(Seurat)
 library(Signac)
 library(EnsDb.Mmusculus.v79)
@@ -363,4 +361,4 @@ p2 <- VlnPlot(
 )
 ggsave(p2, file = "multiome_REP2SHAM_QC_ATAC.jpg", width = 25, height = 25, units = "cm")
 # Save filtered Seurat object
-saveRDS(seu2_sham, file="multiome_filt_rep2_sham.rds")
+saveRDS(seu2_sham, file = "multiome_filt_rep2_sham.rds")

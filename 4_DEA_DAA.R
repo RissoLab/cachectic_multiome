@@ -1,5 +1,3 @@
-.libPaths(new = "/mnt/ganimede/zuin/R/x86_64-pc-linux-gnu-library/4.3")
-
 library(Seurat)
 library(Signac)
 library(dplyr)
@@ -17,6 +15,7 @@ library(ComplexUpset)
 # For reproducibility
 set.seed(8569)
 
+# This file contains the differential expression analysis (DEA) and differential abundance analysis (DAA)
 sgl_mult <- readRDS("multiome_sgl_comb.rds")
 DefaultAssay(sgl_mult) <- "RNA"
 # From Seurat to SingleCellExperiment object
@@ -269,7 +268,7 @@ dev.off()
 
 # Error in svd(Y) : infinite or missing values in 'x'
 
-# Differential Abundance ####
+# Differential Abundance analysis####
 abundances <- table(sce_mult$subclusters, sce_mult$dataset)
 abundances <- unclass(abundances) 
 abundances
