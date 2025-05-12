@@ -226,6 +226,10 @@ value <- c(df[,1], df[,2])
 df_barplot <- data.frame(ct, cond, value)
 
 # Barplot
+load("SubclusterPaletteColor.RData")
+palette_color <- color_palette$Color
+names(palette_color) <- color_palette$Label
+
 p <- ggplot(df_barplot, aes(y=value, x=cond, fill=ct, color=ct)) + 
   geom_bar(position="fill", stat="identity") + scale_y_continuous(labels = scales::percent) + 
   scale_color_manual(values=palette_color)+

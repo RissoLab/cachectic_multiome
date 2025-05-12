@@ -67,8 +67,7 @@ sgl_mult$clusters[sgl_mult$clusters == "25"] <- "Nervous_System"
 sgl_mult$clusters[sgl_mult$clusters == "24"] <- "Pericyte"
 
 load("SubclusterPaletteColor.RData")
-
-cluster_palette <- subcluster_palette[-c(6:10), ]
+cluster_palette <- color_palette[-c(6:11), ]
 cluster_palette$Label[cluster_palette$Label=="Myonuclei_IIb"] <- "Myonuclei"
 palette_color <- cluster_palette$Color
 names(palette_color) <- cluster_palette$Label
@@ -139,19 +138,11 @@ sgl_mult$subclusters[sgl_mult$subclusters =="Myonuclei"] <- myo_mult$subcluster
 
 saveRDS(sgl_mult, file = "multiome_sgl_comb.rds")
 
-load("SubclusterPaletteColor.RData")
-label_color <- subcluster_palette
-label_color$Label[label_color$Label == "Myonuclei_MTJ_IIb"] <- "Myonuclei_MTJ"
-
-add_color <- c( "#e19fc0")
-names(add_color) <- c("Myonuclei_Trim63")
-
-palette_color <- label_color$Color
-names(palette_color) <- label_color$Label
-palette_color <- c(palette_color, add_color)
+palette_color <- color_palette$Color
+names(palette_color) <- color_palette$Label
 
 p <- DimPlot(sgl_mult, reduction = "umap", label = TRUE, repel = TRUE, group.by = "subclusters") + 
-  ggtitle("") + NoLegend() + scale_color_manual(values=palette_color)
+  ggtitle("") + NoLegend() + scale_color_manual(values = palette_color)
 ggsave(p, file="multiome_UMAP_subclusters.jpg", width = 20, height = 20, units = "cm")
 
 # UMAP plot per replicate ####
@@ -185,13 +176,6 @@ ll <- lapply(ll, FUN = function(x) {
 
 ll <- lapply(ll, function(x) RunPCA(x, npcs = 30, verbose = FALSE))
 ll <- lapply(ll, function(x) RunUMAP(x, reduction = "pca", dims = 1:30))
-
-load("SubclusterPaletteColor.RData")
-label_color <- subcluster_palette
-label_color$Label[label_color$Label=="Myonuclei_MTJ_IIb"] <- "Myonuclei_MTJ"
-
-add_color <- c( "#e19fc0")
-names(add_color) <- c("Myonuclei_Trim63")
 
 for (i in seq_along(ll)) {
   p <-  DimPlot(ll[[i]], reduction = "umap", label = TRUE, repel = TRUE, group.by="subclusters") + 
