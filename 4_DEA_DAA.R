@@ -17,6 +17,11 @@ set.seed(8569)
 # This file contains the differential expression analysis (DEA) and differential abundance analysis (DAA)
 sgl_mult <- readRDS("multiome_sgl_comb.rds")
 DefaultAssay(sgl_mult) <- "RNA"
+sgl_mult$condition[sgl_mult$condition == "SHAM"] <- "CTRL"
+sgl_mult$condition[sgl_mult$condition == "CAC"] <- "C26"
+Idents(object = sgl_mult) <- "condition"
+levels(sgl_mult) <- c("CTRL", "C26")
+
 # From Seurat to SingleCellExperiment object
 sce_mult <- as.SingleCellExperiment(sgl_mult)
 
@@ -208,6 +213,147 @@ p1 <- upset(df.edgeRList, colnames(df.edgeRList)[1:7],
         panel.border = element_blank())
 
 ggsave(p1,  file = "multiome_upsetplot_myo.pdf", width = 14, height = 7)
+
+## Heatmap ####
+Seurat::DefaultAssay(sgl_mult) <- "SCT"
+sgl_mult <- ScaleData(sgl_mult, features = rownames(sgl_mult))
+
+genes_filt_cond <- function(obj, label){
+  sub <- obj[, obj$subclusters == label]
+  Seurat::DefaultAssay(sub) <- "RNA"
+  sce <- as.SingleCellExperiment(sub)
+  
+  # genes filtering: 10% for each condition
+  keep <- apply(counts(sce), 1, function(y) all(tapply(y, sce$condition, function(x) mean(x) > 0.1)))
+  return(keep)
+}
+
+df_mult <- lapply(df_mult, function(x) {
+  x$Gene_Name_ID <- rownames(x)
+  x
+})
+df_mult$Myonuclei_Trim63 <- NULL
+label <- names(df_mult)
+keep <- lapply(label, function(x) genes_filt_cond(sgl_mult, x))
+
+dea_filter <- lapply(seq_along(keep), function(i) df_mult[[i]][keep[[i]], ])
+dea_filter <- lapply(dea_filter, function(x) data.frame(Gene_Name_ID = x$Gene_Name_ID, x[, 1:5]))
+names(dea_filter) <- label
+
+up_degs <- lapply(dea_filter, function(x) x[x$FDR < 0.05, ])
+up_degs <- lapply(up_degs, function(x){
+  x <- x[x$logFC>=0, ]
+  x <- x$Gene_Name_ID[1:50]
+})
+names(up_degs) <- label
+
+for (i in seq_along(label)) {
+  p <- DoHeatmap(sgl_mult[, sgl_mult$subclusters == label[i]], features = up_degs[[i]], slot = "scale.data", 
+                 group.colors = c("CTRL" = "#00bec3", "C26" = "#f9756e")) +
+    scale_fill_gradientn(colors = c("blue", "white", "red")) + ggtitle(label[i])
+  ggsave(p, file = paste("multiome_heatmap_upDE_", label[i], ".pdf", sep = ""))
+}
+
+down_degs <- lapply(dea_out, function(x) x[x$FDR < 0.05, ])
+down_degs <- lapply(down_degs, function(x){
+  x <- x[x$logFC<0, ]
+  x <- x[order(x$logFC), ]
+  x <- x$Gene_Name_ID[1:50]
+})
+names(down_degs) <- label
+
+for (i in seq_along(label)) {
+  p <- DoHeatmap(sgl_mult[, sgl_mult$subclusters == label[i]], features = down_degs[[i]], slot = "scale.data", 
+                 group.colors = c("CTRL" = "#00bec3", "C26" = "#f9756e")) +
+    scale_fill_gradientn(colors = c("blue", "white", "red")) + ggtitle(label[i])
+  ggsave(p, file = paste("multiome_heatmap_downDE_", label[i], ".pdf", sep = ""))
+}
+
+dea_myo <- list(df_trim63, df_myo)
+names(dea_myo) <- c("Myonuclei_C26_Trim63_CTRL_Myonuclei_Overall", "Myonuclei_Overall")
+label <- names(dea_myo)
+
+dea_myo <- lapply(dea_myo, function(x){
+  x <- as.data.frame(x)
+  rownames(x) <- x$Gene_Name_ID
+  x
+})
+
+# Myonuclei Overall ####
+myo <- sgl_mult[, sgl_mult$clusters == "Myonuclei"]
+myo_filt_cond <- function(obj){
+  sce <- as.SingleCellExperiment(obj)
+  
+  keep <- apply(counts(sce), 1, function(y) all(tapply(y, sce$condition, function(x) mean(x) > 0.1)))
+  return(keep)
+}
+keep <- select_genes(obj = myo_filt_cond)
+
+dea_myo_filter <- lapply(dea_myo, function(x) x[keep, ])
+dea_myo_filter <- lapply(dea_myo_filter, function(x) x[!is.na(x$Gene_Name_ID), ])
+names(dea_myo_filter) <- names(dea_myo)
+writexl::write_xlsx(x = dea_myo_filter, path = "multiome_degs_filt_myo_cond.xlsx")
+
+up_degs <- lapply(dea_myo_filter, function(x) x[x$FDR < 0.05, ])
+up_degs <- lapply(up_degs, function(x){
+  x <- x[x$logFC>=0, ]
+  x$Gene_Name_ID[1:50]
+})
+
+p <- DoHeatmap(myo, features = up_degs[[2]], slot = "scale.data", 
+               group.colors = c("CTRL" = "#00bec3", "C26" = "#f9756e")) +
+  scale_fill_gradientn(colors = c("blue", "white", "red")) + ggtitle(label[2])
+ggsave(p, file = paste("multiome_heatmap.pdf", sep = ""))
+
+down_degs <- lapply(dea_filter, function(x) x[x$FDR < 0.05, ])
+down_degs <- lapply(down_degs, function(x){
+  x <- x[x$logFC<0, ]
+  x <- x[order(x$logFC), ]
+  x$Gene_Name_ID[1:50]
+})
+
+label <- names(down_degs)
+
+p <- DoHeatmap(myo, features = down_degs[[2]], slot = "scale.data", 
+               group.colors = c("CTRL" = "#00bec3", "C26" = "#f9756e")) +
+  scale_fill_gradientn(colors = c("blue", "white", "red")) + ggtitle(label[2])
+ggsave(p, file = paste("multiome_heatmap_downDE_", label[2], ".pdf", sep = ""))
+
+# Myonuclei_C26_Trim63_CTRL_Myonuclei_Overall ####
+myo <- sgl_mult[, sgl_mult$clusters == "Myonuclei"]
+subset1 <- myo[, c(myo$subclusters == "Myonuclei_Trim63" & myo$condition == "C26")]
+subset2 <- myo[, c(myo$subclusters != "Myonuclei_Trim63" & myo$condition == "CTRL")]
+
+sub <- merge(subset1, subset2)
+Idents(object = sub) <- "condition"
+levels(sub) <- c("CTRL", "C26")
+
+keep <- select_genes(obj = sub)
+
+dea_filter <- lapply(dea_trim63, function(x) x[keep, ])
+
+up_degs <- lapply(dea_filter, function(x) x[x$FDR < 0.05, ])
+up_degs <- lapply(up_degs, function(x){
+  x <- x[x$logFC>=0, ]
+  x$Gene_Name_ID[1:50]
+})
+
+p <- DoHeatmap(sub, features = up_degs[[1]], slot = "scale.data", 
+               group.colors = c("CTRL" = "#00bec3", "C26" = "#f9756e")) +
+  scale_fill_gradientn(colors = c("blue", "white", "red")) + ggtitle(label[1])
+ggsave(p, file = paste("multiome_heatmap_upDE_", label[1], ".pdf", sep = ""))
+
+down_degs <- lapply(dea_filter, function(x) x[x$FDR < 0.05, ])
+down_degs <- lapply(down_degs, function(x){
+  x <- x[x$logFC<0, ]
+  x <- x[order(x$logFC), ]
+  x$Gene_Name_ID[1:50]
+})
+
+p <- DoHeatmap(sub, features = down_degs[[1]], slot = "scale.data", 
+               group.colors = c("CTRL" = "#00bec3", "C26" = "#f9756e")) +
+  scale_fill_gradientn(colors = c("blue", "white", "red")) + ggtitle(label[1])
+ggsave(p, file = paste("multiome_heatmap_downDE_", label[1], ".pdf", sep = ""))
 
 # Differential Abundance analysis####
 abundances <- table(sce_mult$subclusters, sce_mult$dataset)
