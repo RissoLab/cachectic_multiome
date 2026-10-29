@@ -1,11 +1,16 @@
-## Description
-Multiome data (RNA-seq + ATAC-seq) is composed of two cachectic replicates and two controls.
-- Quality control (1_quality_control.R);
-- RNA and ATAC integration (2_rna_atac_integration.R);
-- Cell annotation (3_celltype_annotation.R);
-- Differential expression and abundance analysis (4_DEA_DAA.R);
-- Gene Set Enrichment Analysis (5_GSEA.R); 
-- Cell-cell communication network (6_cell_cell_communication.R); 
-- Analysis of Transcription Factor Binding Motifs (TFBMs) (7_TFBM.R)
+# RNA-based multitarget therapy to restore gene networks and prevent cancer-induced cachexia
 
+## Overview
 
+This repository contains the scripts developed for the analysis of single-nucleus multiome, bulk sequencing, and spatial transcriptomics data.
+
+## Repository Structure
+
+```         
+  - multiome/: scripts for single-nucleus multiome analysis, including quality control, multi-omics integration, 
+    cell type annotation, downstream analysis, cell-cell communication, and transcription factor binding motifs.
+```
+
+## Citation
+
+If these scripts are used in a scientific publication, please cite the associated study: Pezzini C., Persico G., Zuin E., et al. 2026 (Cell Reports Medicine).
