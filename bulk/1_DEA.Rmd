@@ -1,0 +1,87 @@
+---
+title: "Differential gene expression analysis (DEA)"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(edgeR)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(ggrepel)
+```
+
+# Differential expression analysis
+
+```{r}
+# Load raw count matrix
+x <- read.delim("./dataset.txt", stringsAsFactors = FALSE, header = TRUE)
+DG <- readDGE(x , header = FALSE)
+
+matrix <- DG$counts
+matrix <- matrix[-(1:4), ]
+
+group <- x$group
+DG <- DGEList(matrix, group = group)
+DG$samples$name <- x$description
+DG$samples$batch <- x$batch
+
+d <- DG
+genes <- read.delim("./mm10_2020-A_star_geneInfo.tab", header = F)
+genes <- genes[2:nrow(genes),]
+colnames(genes) <- c("ENSBL", "GeneName", "Type")
+
+data <- d$samples
+data <- data[order(data$group),]
+data$order <- as.numeric(c(1:nrow(data)))
+
+levels <- c("PBS", "C26")
+data$group <- factor(data$group, levels = levels)
+data$lib.size <- (data$lib.size/1000000)
+data$lib.size <- round(data$lib.size, digits = 2) 
+
+# Design matrix
+design <- model.matrix(~d$samples$group)
+
+# Keep all genes that have value grater then 1 in at least 2 samples
+keep <- rowSums(edgeR::cpm(d)> 1) >= 2 
+
+d <- d[keep,]
+# Replace lib size
+d$samples$lib.size <- colSums(d$counts) 
+d <- calcNormFactors(d, method = "TMM") 
+logCPM <- edgeR::cpm(d, log = TRUE)
+
+d$samples$group <- relevel(factor(d$samples$group), ref = "PBS")
+design <- model.matrix(~d$samples$group + d$samples$batch)
+
+colnames(design) <- c("PBS", "C26", "Batch")
+head(design)
+
+y <- estimateDisp(d, design)
+fit <- glmQLFit(y,design)
+lrt <- glmQLFTest(fit,coef=2)
+
+lrt$table$FDR <- p.adjust(lrt$table$PValue, method = "BH")
+
+degs <- lrt$table
+degs$ENSBL= rownames(degs)
+
+degs <- merge(degs, logCPM_PBS, by.x = "ENSBL", by.y = "GeneName", all.x = TRUE)
+degs <- merge(degs, logCPM_C26, by.x = "ENSBL", by.y = "GeneName", all.x = TRUE)
+degs$Diff058 <- ifelse(degs$FDR < 0.05 & degs$logFC > 0.58 & degs$logCPM_C26 > 5, "UP",
+                          ifelse(degs$FDR < 0.05 & degs$logFC < -0.58  & degs$logCPM_PBS > 5,"DOWN",
+                                 "noDiff")) 
+degs <- merge(degs, genes, by.x = "ENSBL", by.y = "ENSBL", all = FALSE)
+
+# Up regulated sites
+up058 <- filter(degs, (degs$FDR < 0.05 & degs$logFC > 0.58 & degs$logCPM_C26 > 5))
+
+# Down regulated sites
+down058 <- filter(degs, (degs$FDR < 0.05 & degs$logFC < -0.58  & degs$logCPM_PBS > 5))
+```
+

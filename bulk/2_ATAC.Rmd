@@ -1,0 +1,343 @@
+---
+title: "ATAC-seq analysis"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load packages
+
+```{r, library activation}
+library(edgeR)
+library(ggplot2)
+library(dplyr)
+library(magrittr)
+library(ggrepel)
+library(RColorBrewer)
+library(gplots)
+library(ggrepel)
+library(sva)
+library(DGEobj.utils)
+library(htmlwidgets)
+library(DT)
+library(tinytex)
+library(plotly)
+library(orca)
+library(stringr)
+library(ggupset)
+library(tidyverse)
+library(dendextend)
+library(stringr)
+library(circlize)
+library(ComplexHeatmap)
+library(ggdendro)
+library(Glimma)
+library(RUVSeq)
+```
+
+```{r}
+rna_up <- read.delim2("./UP_RNA_with_ID.txt")
+colnames(rna_up) <- c("ENSB", "GeneName")
+
+# ATAC-seq 1.5kb
+atac_matrix <- read.delim2("./ATAC_Merged_1.5Kb_GeneDrive.matrix", header = FALSE)
+atac_matrix <- atac_matrix[2:nrow(atac_matrix),]  
+
+# Extract counts matrix
+matrix <- atac_matrix[, 7:ncol(atac_matrix)]   
+matrix <- as.matrix(apply(matrix, 2, as.numeric)) 
+rownames(matrix) <- apply(atac_matrix[, 1:4], 1, paste, collapse = "_")
+rownames(matrix) <- gsub(" ", "", rownames(matrix))
+rownames(matrix) <- sapply(strsplit(rownames(matrix), "_"), function(x) paste(x[1:4], collapse = "_")) 
+
+coords <- atac_matrix[, 1:6]
+
+names <- as.data.frame(rownames(matrix))
+
+ENSBID <- as.data.frame(atac_matrix[,4])
+colnames(ENSBID) <- "ENSBID"
+
+# List of gene name and relative ENSL
+gene_mapping <- read.delim2("./gene_mapping.txt", header = FALSE) 
+
+ENSBID <- merge(ENSBID, gene_mapping, by.x = "ENSBID", by.y = "V1", all.x = TRUE)
+ENSBID$ENSBID <- sub("_.*", "", ENSBID$ENSBID)
+ENSBID <- merge(ENSBID, gene_mapping, by.x = "ENSBID", by.y = "V1", all.x = TRUE)
+ENSBID <- ENSBID[,c(1,3)]
+colnames(ENSBID) <- "ENSBID"
+
+mat_scaled_Unique12m <- t(scale(t(matrix)))
+
+dist_matrix <- dist(mat_scaled_Unique12m, method = "euclidean")
+hc <- hclust(dist_matrix, method = "ward.D2")
+num_clusters <- 20
+row_clusters <- cutree(hc, k = num_clusters)
+
+data <- as.data.frame(row_clusters)
+table(data[, 1])
+
+
+```
+
+# Heatmap
+
+```{r}
+col_fun <- colorRamp2(c(-3, 0, 3), c("blue", "white", "red"))
+hmapUnique12m <- Heatmap(
+  mat_scaled_Unique12m,
+  name = "Z-score",
+  col = col_fun,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_rows = TRUE, 
+  row_split = row_clusters,  
+  cluster_columns = FALSE,
+  clustering_distance_rows = "euclidean",  
+  clustering_method_rows = "ward.D2",  
+  width = unit(100, "mm")
+)
+
+hmapUnique12m
+
+heatmap1 <- data.frame(region = names(row_clusters), cluster = as.integer(row_clusters))
+
+df <- heatmap1 %>%
+  separate(region, into = c("chr", "start", "end", "geneName"), sep = "_", extra = "merge") %>%
+  mutate(geneName = gsub("_.*", "", geneName)) 
+
+ordered_rows <- unlist(row_order(hmapUnique12m))
+
+df_ordered <- df[ordered_rows, ]
+
+group4 <- which(row_clusters == 4)
+group11 <- which(row_clusters == 11)
+group12 <- which(row_clusters == 12)
+group15 <- which(row_clusters == 15)
+group19 <- which(row_clusters == 19)
+group17 <- which(row_clusters == 17)
+group8 <- which(row_clusters == 8)
+group20 <- which(row_clusters == 20)
+
+G1 <- c(group4, group11, group12, group15, group19, group17, group8, group20)
+matrix_G1 <- mat_scaled_Unique12m[G1, ]
+
+allnames_matrix_G1 <- as.data.frame(rownames(matrix_G1))
+name_keep <- as.data.frame(G1)
+
+allnames_matrix_G1 <- as.data.frame(rownames(matrix_G1))
+dist_matrix_G1 <- dist(matrix_G1, method = "euclidean")
+hc_G1 <- hclust(dist_matrix_G1, method = "ward.D2")
+num_clusters_G1 <- 21
+row_clusters_G1 <- cutree(hc_G1, k = num_clusters_G1)
+
+data <- as.data.frame(row_clusters_G1)
+table(data[, 1])
+
+hmapUnique12m_h2 <- Heatmap(
+  matrix_G1,
+  name = "Z-score",
+  col = col_fun,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_rows = TRUE, 
+  row_split = row_clusters_G1, 
+  cluster_columns = FALSE,
+  clustering_distance_rows = "euclidean", 
+  clustering_method_rows = "ward.D2", 
+  width = unit(100, "mm")
+)
+hmapUnique12m_h2
+
+HeatmapG1 <- data.frame(
+  region = names(row_clusters_G1),
+  cluster = as.integer(row_clusters_G1)
+)
+
+HeatmapG1df <- HeatmapG1 %>%
+  separate(region, into = c("chr", "start", "end", "geneName"), sep = "_", extra = "merge") %>%
+  mutate(geneName = gsub("_.*", "", geneName)) 
+
+ordered_rows <- unlist(row_order(hmapUnique12m_h2))
+
+HeatmapG1_ordered <- HeatmapG1df[ordered_rows, ]
+
+group1_G1 <- which(row_clusters_G1 == 1)
+group2_G1 <- which(row_clusters_G1 == 2)
+group3_G1 <- which(row_clusters_G1 == 3)
+group4_G1 <- which(row_clusters_G1 == 4)
+group5_G1 <- which(row_clusters_G1 == 5)
+group6_G1 <- which(row_clusters_G1 == 6)
+group10_G1 <- which(row_clusters_G1 == 10)
+group11_G1 <- which(row_clusters_G1 == 11)
+group12_G1 <- which(row_clusters_G1 == 12)
+group13_G1 <- which(row_clusters_G1 == 13)
+group14_G1 <- which(row_clusters_G1 == 14)
+group15_G1 <- which(row_clusters_G1 == 15)
+group16_G1 <- which(row_clusters_G1 == 16)
+group17_G1 <- which(row_clusters_G1 == 17)
+
+keep_filtered <- c(group1_G1, group2_G1, group3_G1, group4_G1, group5_G1, 
+                   group6_G1, group10_G1, group11_G1, group12_G1, group13_G1,
+                   group14_G1, group15_G1, group16_G1, group17_G1)
+
+matrix_keep_filtr <- mat_scaled_Unique12m[keep_filtered, ]
+df_matrix_keep_filtr <- as.data.frame(rownames(matrix_keep_filtr))
+
+matrix_disc <- mat_scaled_Unique12m[-keep_filtered, ]
+df_matrix_disc <- as.data.frame(rownames(matrix_disc))
+
+names <- c(names(keep_filtered))
+matrix_G3 <- mat_scaled_Unique12m[nomi, ]
+name_keep <- as.data.frame(keep_filtered)
+
+allnames_matrix_G2 <- as.data.frame(rownames(matrix_G3))
+dist_matrix_G1 <- dist(matrix_G3, method = "euclidean")
+hc_G1 <- hclust(dist_matrix_G1, method = "ward.D2")
+num_clusters_G1 <- 20
+row_clusters_G1 <- cutree(hc_G1, k = num_clusters_G1)
+
+data <- as.data.frame(row_clusters_G1)
+table(data[, 1])
+
+hmapUnique12m_h2 <- Heatmap(
+  matrix_G3,
+  name = "Z-score",
+  col = col_fun,
+  show_row_names = FALSE,
+  show_column_names = FALSE,
+  cluster_rows = TRUE, 
+  row_split = row_clusters_G1, 
+  cluster_columns = FALSE,
+  clustering_distance_rows = "euclidean", 
+  clustering_method_rows = "ward.D2", 
+  width = unit(100, "mm")
+)
+hmapUnique12m_h2
+
+HeatmapG1 <- data.frame(
+  region = names(row_clusters_G1), 
+  cluster = as.integer(row_clusters_G1) 
+)
+
+HeatmapG1df <- HeatmapG1 %>%
+  separate(region, into = c("chr", "start", "end", "geneName"), sep = "_", extra = "merge") %>%
+  mutate(geneName = gsub("_.*", "", geneName)) 
+ordered_rows <- unlist(row_order(hmapUnique12m_h2))
+
+HeatmapG1_ordered <- HeatmapG1df[ordered_rows, ]
+Keep_filtered <- HeatmapG1_ordered
+
+write.table(Keep_filtered, file = "Keep_Filtered.txt")
+```
+
+# Transcription factors binding sites
+
+```{r}
+library(motifTestR)
+library(BSgenome.Mmusculus.UCSC.mm10)
+library(MotifDb)
+library(scuttle)
+library(edgeR)
+
+region <- read.table(file = "Keep_Filtered.txt", header = T)
+head(region)
+i <- 1:nrow(region)
+region$name <- paste("gene", i, paste(region$chr, paste(region$start, region$end, sep = "-"), sep = ":"), sep = "_")
+region <- region[!duplicated(region$name), ]
+rownames(region) <- region$name
+
+gr <- GRanges(seqnames = Rle(region$chr),
+              ranges = paste(region$start, region$end, sep = "-"))
+names(gr) <- rownames(region)
+
+as.data.frame(gr)
+
+ex_pfm <- MotifDb |>
+  subset(organism == "Mmusculus") |>
+  query("jaspar2022") |>
+  as.list() 
+names(ex_pfm) <- gsub(".+jaspar2022-(.+)-.+", "\\1", names(ex_pfm))
+
+test <- getSeq(BSgenome.Mmusculus.UCSC.mm10, gr)
+
+
+out <- getPwmMatches(ex_pfm, test, best_only = TRUE, break_ties = "all")
+names(out) <- paste(names(out), seq(1, length(names(out))), sep = "_")
+
+remove_zero <- function(obj) {
+  n <- lapply(obj, function(x) length(rownames(as.data.frame(x))))
+  n <- do.call(rbind, n)
+  n <- n[n>0, ] 
+  obj <- obj[names(n)]
+  names(obj) <- sub("\\_.*", "", names(obj))
+  return(obj)
+}
+
+match_tf <- remove_zero(out)
+match_tf <- lapply(match_tf, function(x) as.data.frame(x))
+
+save(match_tf, file = "Keep_list_tf.RData")
+
+df <- do.call(rbind, match_tf)
+df <- as.data.frame(df)
+df$tf <- rownames(df)
+df$tf <- sub("\\..*", "", df$tf)
+write.table(df, file= "./Lista_Finale_tf_New.txt", sep="\t", quote=FALSE, row.names = F)
+
+allregions <- df
+
+count <- table(df$tf)
+count <- as.data.frame(count)
+count <- count[order(count$Freq, decreasing = TRUE), ]
+count_top30 <- head(count, 30)
+count_top30$Var1 <- factor(count_top30$Var1, levels = rev(count_top30$Var1))
+
+library(ggplot2)
+ggplot(count_top30, aes(x = Var1, y = Freq)) +
+  geom_bar(stat = "identity", fill = "grey32") +
+  coord_flip() +  
+  theme_minimal() +
+  labs(title = "Top30_List_All", x = "TF", y = "N. of targets")
+
+
+rna_bulk <- read.delim("./EdgeR/Results.txt")
+InterestGene <- filter(rna_bulk, (logFC >= 0 & logCPM_C26 >= 5))
+
+Intersect_All <- InterestGene %>%
+  filter(GeneName %in% allregions$tf)
+
+merged_df <- merge(Intersect_All, count, by.x = "GeneName", by.y = "Var1", all.x = TRUE)
+
+merged_df <- merged_df[order(merged_df$Freq, decreasing = TRUE), ]
+merged_df_top30= head(merged_df, 12)
+merged_df_top30$GeneName <- factor(merged_df_top30$GeneName, levels = rev(merged_df_top30$GeneName))
+
+
+library(ggplot2)
+frq_runk <- ggplot(merged_df_top30, aes(x = GeneName, y = Freq)) +
+  geom_bar(stat = "identity", fill = "grey32") +
+  coord_flip() +  # Barre orizzontali
+  theme_minimal(base_size = 18) +
+  labs(title = "N° Target Runk", x = "TF", y = "N. of targets")
+
+frq_runk
+
+pdf("./Freq_runk.pdf")
+frq_runk
+dev.off()
+
+
+fdr_runk=ggplot(merged_df_top30, aes(x = -log10(FDR), y = reorder(GeneName, -log10(FDR)))) +
+  geom_bar(stat = "identity", fill = "forestgreen") +
+  theme_minimal(base_size = 18) +
+  labs(title = "FDR Runk", x = "-10LogFDR", y = "TF")
+
+fdr_runk
+
+pdf("./FDR_runk.pdf")
+fdr_runk
+dev.off()
+```
+
