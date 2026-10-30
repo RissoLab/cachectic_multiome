@@ -1,0 +1,133 @@
+---
+title: "Spatial Data in R"
+format: html
+---
+
+## Read the Zarr file
+
+```{r}
+library(SpatialData)
+library(ggplot2)
+library(patchwork)
+library(SingleCellExperiment)
+library(SpatialFeatureExperiment)
+library(scater)
+library(Voyager)
+
+spd <- readSpatialData("c26t16_align.zarr/")
+spd
+```
+
+## Plot data
+
+Note that the images have been aligned using landmarks and affine transformation.
+
+```{r}
+ps <- list(
+    p1 <- plotImage(spd, i=2, coord = "aligned"), 
+    p2 <- plotShape(spd, fill="grey"))
+wrap_plots(ps)
+pile(ps)
+```
+
+## Extract features
+
+```{r}
+(sce <- mask(image(spd, i="C26T16_GFP"), shape(spd)))
+assay(sce)[,1:4]
+```
+
+Here, we sum all three channels. And plot the spots color-coded by the total GFP intensities.
+
+```{r}
+tmp = spd$tables[[1]]
+colData(tmp)$gfp <- colSums(assay(sce))
+colData(tmp)
+
+as.data.frame(colData(tmp)) |>
+    ggplot(aes(-array_row, -array_col, color = log(gfp))) +
+    geom_point() +
+    scale_color_viridis_c()
+```
+
+Now we can create and save a SpatialFeatureExperiment object with this information.
+
+```{r}
+base_dirs <- "~/Google Drive/My Drive/research/Cachectic_Visium/"
+sample_dirs <- c("Sample_S54409_C26Sh_16_18_20")
+
+sfe <- read10xVisiumSFE(samples = paste0(base_dirs, sample_dirs), 
+                        type = "sparse",
+                        data = "filtered", 
+                        images = "lowres",
+                        sample_id = "C26T16", zero.policy=TRUE)
+
+sfe <- mirror(sfe)
+colData(sfe)$gfp <- colSums(assay(sce))
+sfe <- logNormCounts(sfe)
+rownames(sfe) <- rowData(sfe)$symbol
+
+sfe_all <- readRDS("sfe_annotated.rds")
+sample_id <- sfe_all$sample_id[sfe_all$in_tissue]
+tissue_id <- sfe_all$tissue_id[sfe_all$in_tissue]
+tissue_id <- droplevels(tissue_id[sample_id == "C26T16"])
+
+plotSpatialFeature(sfe, "gfp")
+plotSpatialFeature(sfe, "Trim63")
+```
+
+# Differential expression
+
+```{r}
+plotColData(sfe, "gfp")
+hist(log(sfe$gfp))
+summary(sfe$gfp)
+
+sfe$gfp_bin <- as.factor(ifelse(sfe$gfp > 20, 1, 0))
+plotSpatialFeature(sfe, "gfp_bin")
+
+sfe <- sfe[!grepl("^DEPRECATED", rownames(sfe)),]
+
+library(edgeR)
+y <- DGEList(counts=counts(sfe), group=sfe$gfp_bin)
+y <- y[,!is.na(tissue_id)]
+filter <- filterByExpr(y, min.count = 1, min.prop = 0.3)
+table(filter)
+markers <- c("Trim63", "Foxo1", "Foxo3")
+markers %in% rownames(sfe)[filter]
+
+y <- y[filter,]
+y <- calcNormFactors(y)
+design <- model.matrix(~sfe$gfp_bin + tissue_id)
+y <- estimateDisp(y,design)
+
+fit <- glmFit(y,design)
+lrt <- glmLRT(fit,coef=2)
+topTags(lrt)
+
+top <- topTags(lrt, n=Inf)$table
+
+write.table(top, file = "c26_treated_GFPvsBlack.tsv", sep = "\t",      
+            row.names = TRUE, col.names = TRUE)
+
+table(top$FDR <= 0.05)
+
+top[markers,]
+```
+
+```{r}
+#| echo: false
+#| eval: false
+#| include: false
+library(spatialreg)
+colGraph(sfe, "visium") <- findVisiumGraph(sfe, zero.policy = TRUE)
+Trim63 <- logcounts(sfe)["Trim63",]
+gfp <- sfe$gfp
+fit.err<-errorsarlm(Trim63 ~ log(gfp), listw = colGraph(sfe, "visium"), zero.policy=TRUE) 
+summary(fit.err)
+
+fit.lag<-lagsarlm(Trim63 ~ log(gfp), listw = colGraph(sfe, "visium"), zero.policy=TRUE)
+summary(fit.lag)
+```
+
+

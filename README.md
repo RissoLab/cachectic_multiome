@@ -6,7 +6,8 @@ This repository contains the scripts developed for the analysis of single-nucleu
 
 ## Repository Structure
 
--   multiome/: scripts for single-nucleus multiome analysis, including quality control, multi-omics integration, cell type annotation, downstream analysis, cell-cell communication, and transcription factor binding motifs.
+  -   multiome/: scripts for single-nucleus multiome analysis, including quality control, multi-omics integration, cell type annotation, downstream analysis, cell-cell communication, and transcription factor binding motifs;
+  -   spatial/: scripts for spatial trascriptomic analysis, including alignment, exploratory data analysis, and downstream analysis.
 
 ## Citation
 

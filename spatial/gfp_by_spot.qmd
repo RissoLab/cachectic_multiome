@@ -1,0 +1,30 @@
+---
+title: "Feature extraction"
+format: html
+jupyter: python3
+---
+
+## GFP by spot
+
+Now that I have aligned the images, I need to extract the average GFP signal for
+each spot.
+
+This means to extract the average intensity level of GFP by shape (spot).
+
+Let's read the data.
+
+```{python}
+import spatialdata as sd
+from napari_spatialdata import Interactive
+
+sdata = sd.read_zarr("c26t16_final.zarr")
+
+Interactive(sdata)
+```
+
+
+```{python}
+import squidpy as sq
+
+img = sq.im.ImageContainer(img="c26t16_aligned.zarr/images/C26T16_GFP/")
+```

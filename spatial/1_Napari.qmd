@@ -1,0 +1,106 @@
+---
+title: "Visualize and align with Napari"
+format: html
+editor: visual
+jupyter: python3
+---
+
+## Create SpatialData objects
+
+This code is inspired by [this tutorial](https://spatialdata.scverse.org/en/latest/tutorials/notebooks/notebooks/examples/alignment_using_landmarks.html).
+
+```{python}
+import numpy as np
+import spatialdata as sd
+
+from napari_spatialdata import Interactive
+import spatialdata_io as sio
+import spatialdata_plot
+
+c26t16 = sio.visium(path="data/Sample_S54409_C26Sh_16_18_20/outs/", dataset_id="C26T16", fullres_image_file = "../../Spatial_Omics_IHC_161820_Merged_ch00.tif")
+c26t16
+
+c26t16.pl.render_images().pl.render_shapes().pl.show("downscaled_lowres")
+```
+
+Let's add the images.
+
+```{python}
+from dask_image.imread import imread
+from xarray import DataArray
+from spatialdata.models import Image2DModel
+from spatialdata.models import PointsModel
+from spatialdata.transformations.transformations import Identity
+
+image = imread("data/IF_WGA_dapi_GFP/Slide161820_GFP.ome.tif").squeeze().transpose(2, 0, 1)
+image = DataArray(image, dims=("c", "y", "x"))
+
+im_mod = Image2DModel.parse(
+    image,
+    scale_factors=[2, 2, 2, 2],
+    transformations={"global": Identity()}
+    )
+
+c26t16.add_image(name="C26T16_GFP", image=im_mod)
+
+image = imread("data/IF_WGA_dapi_GFP/Project_C26 sh 16_18_20_merge.tif").squeeze().transpose(2, 0, 1)
+image = DataArray(image, dims=("c", "y", "x"))
+
+im_mod = Image2DModel.parse(
+    image,
+    scale_factors=[2, 2, 2, 2],
+    transformations={"global": Identity()}
+    )
+
+c26t16.add_image(name="C26T16_merge", image=im_mod)
+```
+
+## Visualize with Napari
+
+In this interactive chunk, I add the landmarks.
+
+```{python}
+#| eval: false
+Interactive(c26t16)
+```
+
+```{python}
+sdata = sd.read_zarr("c26t16.zarr/")
+sdata.points
+c26t16.add_points("IF landmarks", PointsModel.parse(sdata.points["IF landmarks"]))
+c26t16.add_points("Visium landmarks", PointsModel.parse(sdata.points["Visium landmarks"]))
+```
+
+Now we can transform the images.
+
+```{python}
+from spatialdata.transformations import (
+    align_elements_using_landmarks,
+    set_transformation,
+)
+from spatialdata import save_transformations
+
+affine = align_elements_using_landmarks(
+    references_coords=c26t16["IF landmarks"],
+    moving_coords=c26t16["Visium landmarks"],
+    reference_element=c26t16["C26T16_GFP"],
+    moving_element=c26t16["C26T16_full_image"],
+    reference_coordinate_system="global",
+    moving_coordinate_system="global",
+    new_coordinate_system="aligned",
+)
+affine
+
+set_transformation(c26t16["C26T16"], affine, "aligned")
+# save_transformations(c26t16)
+```
+
+```{python}
+c26t16 = c26t16.transform_to_coordinate_system("aligned")
+```
+
+Let's save the object in .zarr file.
+
+```{python}
+c26t16.write("c26t16_align.zarr")
+```

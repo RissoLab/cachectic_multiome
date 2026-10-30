@@ -1,0 +1,215 @@
+---
+title: "Visium Exploratory Data Analysis (EDA)"
+format: html
+editor: visual
+---
+
+```{r}
+library(SpatialFeatureExperiment)
+library(SpatialExperiment)
+library(scater)
+library(Voyager)
+library(ggspavis)
+library(ggplot2)
+library(dplyr)
+library(dbscan)
+library(scuttle)
+```
+
+## Read in unfiltered samples
+
+```{r}
+base_dirs <- "~/Google Drive/My Drive/research/Cachectic_Visium/"
+sample_dirs <- c("Sample_S54407_Sham1_3_5",
+                 "Sample_S54410_C26Ctrl_7_9_11",
+                 "Sample_S54409_C26Sh_16_18_20",
+                 "Sample_S54408_C26Sh_17_19_21"
+                 )
+
+sfe <- read10xVisiumSFE(samples = paste0(base_dirs, sample_dirs), 
+                        type = "sparse",
+                        data = "raw", 
+                        images = "lowres",
+                        sample_id = c("Sham", "C26Ctrl", "C26T16", "C26T17")
+                        )
+sfe <- mirror(sfe)
+sfe
+colData(sfe)
+table(sfe$in_tissue, sfe$sample_id)
+```
+
+First look at the samples
+
+```{r}
+sfe <- addPerCellQCMetrics(sfe)
+
+plotSpatialFeature(sfe, "sum", 
+                   image_id = "lowres", ncol = 2,
+                   divergent=FALSE,
+                   dark=TRUE)
+
+plotSpatialFeature(sfe, "detected", 
+                   image_id = "lowres", ncol = 2,
+                   divergent=FALSE,
+                   dark=TRUE)
+```
+
+## Filtering and sample splitting
+
+We can filter the spots, mostly using 10X algorithm, but removing the top-right corner of C26Ctrl.
+
+```{r}
+theme_set(theme_bw())
+
+plotSpatialFeature(sfe[, sfe$sample_id=="C26Ctrl"], "in_tissue")
+
+as.data.frame(colData(sfe)) |>
+    dplyr::filter(in_tissue & sample_id=="C26Ctrl") |>
+    ggplot(aes(-array_row, -array_col)) +
+    geom_point()
+```
+
+We need to split the samples, I would hope that a simple clustering of the coordinates will do the job.
+
+### C26 control
+
+```{r}
+C26Ctrl <- sfe[, sfe$in_tissue & sfe$sample_id=="C26Ctrl"]
+coords <- spatialCoords(C26Ctrl)
+
+cl <- dbscan(coords, eps = 300, minPts = 10)
+table(cl$cluster)
+
+as.data.frame(colData(C26Ctrl)) |>
+    ggplot(aes(-array_row, -array_col, color=as.factor(cl$cluster))) +
+    geom_point()
+
+C26Ctrl_1 <- C26Ctrl[, cl$cluster==1]
+C26Ctrl_2 <- C26Ctrl[, cl$cluster==2]
+
+plotSpatialFeature(C26Ctrl_1, features = "sum")
+plotSpatialFeature(C26Ctrl_2, features = "sum")
+```
+
+### SHAM
+
+```{r}
+Sham <- sfe[, sfe$in_tissue & sfe$sample_id=="Sham"]
+coords <- spatialCoords(Sham)
+
+cl <- dbscan(coords, eps = 300, minPts = 10)
+table(cl$cluster)
+
+as.data.frame(colData(Sham)) |>
+    ggplot(aes(-array_row, -array_col, color=as.factor(cl$cluster))) +
+    geom_point()
+
+Sham_1 <- Sham[, cl$cluster==1]
+Sham_2 <- Sham[, cl$cluster==2]
+Sham_3 <- Sham[, cl$cluster==3]
+
+plotSpatialFeature(Sham_1, features = "sum")
+plotSpatialFeature(Sham_2, features = "sum")
+plotSpatialFeature(Sham_3, features = "sum")
+```
+
+### C26T16
+
+```{r}
+C26T16 <- sfe[, sfe$in_tissue & sfe$sample_id=="C26T16"]
+coords <- spatialCoords(C26T16)
+
+cl <- dbscan(coords, eps = 300, minPts = 10)
+table(cl$cluster)
+
+as.data.frame(colData(C26T16)) |>
+    ggplot(aes(-array_row, -array_col, color=as.factor(cl$cluster))) +
+    geom_point()
+
+C26T16_1 <- C26T16[, cl$cluster==1]
+C26T16_2 <- C26T16[, cl$cluster==2]
+C26T16_3 <- C26T16[, cl$cluster==3]
+
+plotSpatialFeature(C26T16_1, features = "sum")
+plotSpatialFeature(C26T16_2, features = "sum")
+plotSpatialFeature(C26T16_3, features = "sum")
+```
+
+### C26T17
+
+```{r}
+C26T17 <- sfe[, sfe$in_tissue & sfe$sample_id=="C26T17"]
+coords <- spatialCoords(C26T17)
+
+cl <- dbscan(coords, eps = 300, minPts = 10)
+table(cl$cluster)
+
+as.data.frame(colData(C26T17)) |>
+    ggplot(aes(-array_row, -array_col, color=as.factor(cl$cluster))) +
+    geom_point()
+
+C26T17_1 <- C26T17[, cl$cluster==1]
+C26T17_2 <- C26T17[, cl$cluster==2]
+C26T17_3 <- C26T17[, cl$cluster==3]
+
+plotSpatialFeature(C26T17_1, features = "sum")
+plotSpatialFeature(C26T17_2, features = "sum")
+plotSpatialFeature(C26T17_3, features = "sum")
+```
+
+### Add tissue ID to full object
+
+```{r}
+sfe$tissue_id <- rep(NA_character_, ncol(sfe))
+
+colData(sfe)[sfe$sample_id=="Sham",][colnames(Sham_1),"tissue_id"] <- "Sham_1"
+colData(sfe)[sfe$sample_id=="Sham",][colnames(Sham_2),"tissue_id"] <- "Sham_2"
+colData(sfe)[sfe$sample_id=="Sham",][colnames(Sham_3),"tissue_id"] <- "Sham_3"
+
+colData(sfe)[sfe$sample_id=="C26T16",][colnames(C26T16_1),"tissue_id"] <- "C26T16_1"
+colData(sfe)[sfe$sample_id=="C26T16",][colnames(C26T16_2),"tissue_id"] <- "C26T16_2"
+colData(sfe)[sfe$sample_id=="C26T16",][colnames(C26T16_3),"tissue_id"] <- "C26T16_3"
+
+colData(sfe)[sfe$sample_id=="C26T17",][colnames(C26T17_1),"tissue_id"] <- "C26T17_1"
+colData(sfe)[sfe$sample_id=="C26T17",][colnames(C26T17_2),"tissue_id"] <- "C26T17_2"
+colData(sfe)[sfe$sample_id=="C26T17",][colnames(C26T17_3),"tissue_id"] <- "C26T17_3"
+
+colData(sfe)[sfe$sample_id=="C26Ctrl",][colnames(C26Ctrl_1),"tissue_id"] <- "C26Ctrl_1"
+colData(sfe)[sfe$sample_id=="C26Ctrl",][colnames(C26Ctrl_2),"tissue_id"] <- "C26Ctrl_2"
+
+sfe$tissue_id <- as.factor(sfe$tissue_id)
+
+plotSpatialFeature(sfe, features = "tissue_id")
+```
+
+## Exploratory Data Analysis
+
+Plot total counts and three interesting genes.
+
+```{r}
+sfe <- logNormCounts(sfe)
+rownames(sfe) <- rowData(sfe)$symbol
+
+plotSpatialFeature(sfe, "Trim63")
+plotSpatialFeature(sfe, "Foxo1")
+plotSpatialFeature(sfe, "Foxo3")
+
+saveRDS(sfe, file="sfe_annotated.rds")
+```
+
+### PCA of pseudobulk
+
+```{r}
+# create pseudobulk
+pb <- aggregateAcrossCells(sfe, ids=sfe$tissue_id)
+pb <- computeLibraryFactors(pb)
+pb <- logNormCounts(pb)
+pb <- runPCA(pb, BSPARAM = BiocSingular::ExactParam(), ncomponents=10)
+plotPCA(pb, color_by = "tissue_id", point_size=4)
+```
+
+```{r}
+rownames(pb) <- rowData(pb)$symbol
+feats <- rownames(pb)[which(rowData(pb)$symbol %in% c("Trim63", "Foxo1", "Foxo3"))]
+plotHeatmap(pb, feats, color_columns_by = "sample_id")
+```
